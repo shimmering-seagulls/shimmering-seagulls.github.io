@@ -229,7 +229,7 @@
     .mix-slider {
       flex: 1;
       margin: 0;
-      accent-color: #f98e09;
+      accent-color: #9f64aa;
       cursor: pointer;
     }
 
@@ -567,11 +567,13 @@
       audio.className = "audio-element";
       audio.controls = false;
       audio.preload = "none";
+      audio.loop = true;
 
       const dryAudio = document.createElement("audio");
       dryAudio.className = "audio-element";
       dryAudio.controls = false;
       dryAudio.preload = "none";
+      dryAudio.loop = true;
 
       const stopThisPlayer = () => {
         audio.pause();
@@ -603,6 +605,40 @@
 
       let rafId = null;
       let currentTrack = null;
+      let dryRetryTimer = null;
+
+      const clearDryRetry = () => {
+        if (dryRetryTimer !== null) {
+          clearInterval(dryRetryTimer);
+          dryRetryTimer = null;
+        }
+      };
+
+      const tryStartDryPlayback = async () => {
+        if (!currentTrack || currentTrack.isDryReference || audio.paused) {
+          return;
+        }
+
+        dryAudio.currentTime = audio.currentTime;
+        await dryAudio.play().catch(() => {});
+      };
+
+      const startDryRetry = () => {
+        clearDryRetry();
+        dryRetryTimer = setInterval(() => {
+          if (audio.paused || !currentTrack || currentTrack.isDryReference) {
+            clearDryRetry();
+            return;
+          }
+
+          if (!dryAudio.paused) {
+            clearDryRetry();
+            return;
+          }
+
+          tryStartDryPlayback();
+        }, 300);
+      };
 
       const applyMix = () => {
         const wet = Number(mixSlider.value) / 100;
@@ -626,10 +662,11 @@
           return;
         }
 
-        dryAudio.currentTime = audio.currentTime;
-        const dryPlayPromise = dryAudio.play().catch(() => {});
         await audio.play();
-        await dryPlayPromise;
+        await tryStartDryPlayback();
+        if (dryAudio.paused) {
+          startDryRetry();
+        }
       };
 
       const formatTime = (seconds) => {
@@ -681,7 +718,7 @@
         stopPlayheadLoop();
         const tick = () => {
           updatePlayhead();
-          if (!audio.paused && !audio.ended) {
+          if (!audio.paused) {
             rafId = requestAnimationFrame(tick);
           } else {
             rafId = null;
@@ -703,6 +740,7 @@
         };
         selectedLabel.textContent = `Selected clip: ${track.title}`;
         mixRow.style.display = track.isDryReference ? "none" : "flex";
+        clearDryRetry();
         audio.load();
         dryAudio.load();
         playhead.classList.remove("visible");
@@ -739,21 +777,45 @@
       audio.addEventListener("play", () => {
         stopAllPlayers(audio);
         startPlayheadLoop();
+        tryStartDryPlayback();
+        if (currentTrack && !currentTrack.isDryReference && dryAudio.paused) {
+          startDryRetry();
+        }
       });
       audio.addEventListener("pause", () => {
         dryAudio.pause();
+        clearDryRetry();
         stopPlayheadLoop();
         updatePlayhead();
       });
       audio.addEventListener("ended", () => {
         dryAudio.pause();
+        clearDryRetry();
         stopPlayheadLoop();
         updatePlayhead();
       });
       audio.addEventListener("loadedmetadata", updatePlayhead);
-      audio.addEventListener("timeupdate", updatePlayhead);
+      audio.addEventListener("timeupdate", () => {
+        updatePlayhead();
+        if (currentTrack && !currentTrack.isDryReference && !audio.paused && dryAudio.paused) {
+          tryStartDryPlayback();
+        }
+      });
       audio.addEventListener("seeked", updatePlayhead);
       audio.addEventListener("loadedmetadata", updateTimeLabel);
+
+      dryAudio.addEventListener("canplay", () => {
+      });
+
+      dryAudio.addEventListener("play", () => {
+        clearDryRetry();
+      });
+
+      dryAudio.addEventListener("pause", () => {
+        if (!audio.paused && currentTrack && !currentTrack.isDryReference) {
+          startDryRetry();
+        }
+      });
 
       dryAudio.addEventListener("error", () => {
         if (!currentTrack || currentTrack.isDryReference || drySource.src.includes("dafx26-dry-short")) {
@@ -769,6 +831,7 @@
             await dryAudio.play().catch(() => {});
           };
           dryAudio.addEventListener("canplay", restartFromFallback);
+          startDryRetry();
         }
       });
 
