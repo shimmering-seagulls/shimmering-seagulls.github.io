@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DAFx26 | Shimmer Reverberation</title>
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [["\\(", "\\)"]],
+        displayMath: [["\\[", "\\]"]]
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <style>
+    :root {
+      --bg: #f6f8fc;
+      --text: #121722;
+      --muted: #56627a;
+      --card: #ffffff;
+      --border: #d8deea;
+      --accent: #2c58ff;
+      --accent-soft: #eef2ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2rem 1rem 3rem;
+    }
+
+    h1, h2, h3, h4 { line-height: 1.25; }
+    h1 { margin: 0 0 0.6rem; font-size: 2rem; text-align: center; }
+    h2 { margin: 2rem 0 1rem; font-size: 1.4rem; }
+    h3 { margin: 0 0 0.7rem; font-size: 1.05rem; }
+    h4 { margin: 1.25rem 0 0.7rem; font-size: 0.95rem; color: var(--muted); font-weight: 600; }
+
+    .top-meta,
+    .figure-wrap,
+    .group {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+    }
+
+    .authors,
+    .abstract,
+    .repo-link { margin: 0.45rem 0; }
+
+    .label {
+      font-weight: 600;
+      color: var(--muted);
+      margin-right: 0.35rem;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .figure-wrap object {
+      width: 100%;
+      min-height: 620px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+      .figure-wrap img {
+        width: 100%;
+        display: block;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: #fff;
+      }
+      
+        .figure-caption {
+          margin: 0.75rem 0 0;
+          color: var(--muted);
+          font-size: 0.95rem;
+          line-height: 1.45;
+        }
+
+    .group { margin-top: 1rem; }
+
+    .subgroup {
+      margin-top: 1.5rem;
+      padding: 0;
+    }
+
+    .switch-player {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .player-body {
+      display: grid;
+      grid-template-columns: minmax(260px, 1.4fr) minmax(260px, 1fr);
+      gap: 1rem;
+      padding: 1rem;
+      align-items: start;
+    }
+
+    .thumb {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      display: block;
+    }
+
+    .thumb-wrap {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+
+    .thumb-wrap .thumb {
+      border: 0;
+      border-radius: 0;
+    }
+
+    .playhead {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: #f98e09;
+      box-shadow: 0 0 0 1px rgba(95, 42, 0, 0.24);
+      left: 0;
+      pointer-events: none;
+      transform: translateX(-100%);
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+
+    .playhead.visible {
+      opacity: 1;
+    }
+
+    .track-list {
+      max-height: 250px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.35rem;
+      background: #fcfdff;
+    }
+
+    .track-option {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      font: inherit;
+      text-align: left;
+      background: transparent;
+      border: 0;
+      padding: 0.4rem 0.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #253048;
+    }
+
+    .track-option.active {
+      background: var(--accent-soft);
+      color: #1c2f80;
+      font-weight: 600;
+    }
+
+    .player-footer {
+      border-top: 1px solid var(--border);
+      padding: 0.75rem 1rem 1rem;
+      background: #fdfefe;
+    }
+
+    .player-footer p {
+      margin: 0 0 0.35rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .timeline-wrap {
+      margin: 0.25rem 0 0.5rem;
+    }
+
+    .timeline-slider {
+      width: 100%;
+      margin: 0;
+      accent-color: #f98e09;
+      cursor: pointer;
+    }
+
+    .controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.8rem;
+    }
+
+    .play-toggle {
+      font: inherit;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      padding: 0.28rem 0.7rem;
+      color: #253048;
+      cursor: pointer;
+      min-width: 72px;
+    }
+
+    .play-toggle:hover {
+      border-color: #b6c2dd;
+      background: #f7f9ff;
+    }
+
+    .time-label {
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .audio-element {
+      display: none;
+    }
+
+    .footnote {
+      margin-top: 1rem;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    @media (max-width: 800px) {
+      .player-body {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="top-meta">
+      <h1>Shimmer Reverberation:<br>Audio Effects Violating the Laws of Physics</h1>
+      <p class="authors"><span class="label">Authors:</span> ~ </p>
+      <p class="content"><span class="label">Content:</span>This companion page provides audio examples to showcases the effect of five different nonlinear Feedback Delay Networks (FDNs).</p>
+      <p class="repo-link"><span class="label">Code:</span><a href="https://github.com/shimmering-seagulls" target="_blank" rel="noopener noreferrer">https://shimmering-seagulls.github.io/</a></p>
+    </section>
+
+    <section>
+      <h2>Structure of the Nonlinear FDN</h2>
+      <div class="figure-wrap">
+          <img src="figures/structure_fdn_big.png" alt="Structure of the nonlinear FDN shimmer reverberation system" />
+           <p class="figure-caption"><b>Proposed approach</b>: the nonlinear operations \(f_i\) are placed in the feedback loop of an FDN. In this configuration, the output of the nonlinearity feeds the orthogonal matrix \(\mathbf{U}\), which distributes it across the FDN channels, generating distinct sound textures depending on the chosen FDN parameters.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Audio Examples</h2>
+      <div id="audio-groups"></div>
+      <p class="footnote">Each folder uses a switchable player with one selected clip at a time. Preview images are waveform + spectrogram thumbnails generated by `scripts/generate_previews.py`.</p>
+    </section>
+  </main>
+
+  <script>
+    const clipIds = [
+      "clean_singing_02",
+      "clouds_01",
+      "clouds_02",
+      "guitar_01",
+      "synth_01"
+    ];
+
+    const groups = [
+      { 
+        label: "Unprocessed",
+        description: "Unprocessed dry reference signal.",
+        subgroups: [
+          { 
+            folder: "dafx26-dry-short", 
+            prefix: "dafx26-dry-short", 
+            label: "Unprocessed"
+          }
+        ]
+      },
+      { 
+        label: "Linear",
+        description: "Linear FDN, i.e. \\( f_i(x) = x \\; \\forall \\; i \\) , included as a reference point.",
+        subgroups: [
+          { 
+            folder: "vanilla", 
+            prefix: "vanilla", 
+            label: "Linear", 
+            description: "\\(N=8\\), Househodler matrix \\(\\mathbf{U}\\), delay lines \\(m \\approx [72, 166, 235, 248, 302, 349, 43, 500]\\) ms."
+          }
+        ]
+      },
+      {
+        label: "Controlled Full Wave Rectifier",
+        description: "The output of the CFWR is defined as: \\[ y(n) = g\\left((1-\\alpha)x(n) + \\alpha|x(n)|\\right), \\] where \\(0\\leq\\alpha\\leq1\\) controls the distortion strength, and scaling factor \\(g=\\sqrt{2-2|\\alpha-1/2|}\\) helps maintain the signal power when \\(\\alpha<1\\).",
+        subgroups: [
+          {
+            folder: "cfwr_01",
+            prefix: "cfwr_01",
+            label: "CFWR"
+          }
+        ]
+      },
+      {
+        label: "Signal Dependent Fractional Delay",
+        description: "The input signal is decomposed into positive and negative components using positive and negative half-wave rectifiers, respectively. Each rectified component is then processed by a linear interpolator with complementary weights \\(d\\) and \\(1-d\\). The positive component experiences an effective delay of approximately \\(1+d\\) samples, while the negative component is delayed by approximately \\(1-d\\) samples. The output signal is obtained by summing the two branches.",
+        subgroups: [
+          {
+            folder: "sdfd_01",
+            prefix: "sdfd_01",
+            label: "SDFD"
+          }
+        ]
+      },
+      {
+        label: "Ring Modulator",
+        description: "The output of the RM is given by \\[ y(n) = x(n) m(n) = x(n) \\sin(2\\pi f_{\\mathrm{rm}} n), \\] The multiplication shifts the spectral components of the input signal: each sinusoidal component of \\(x(n)\\) produces two sidebands located at the sum and difference frequencies relative to \\(f_{\\mathrm{rm}}\\) . As a result, the output spectrum consists of an upper sideband corresponding to a frequency shift by \\(+f_{\\mathrm{rm}}\\) , and a mirrored sideband shifted by \\(-f_{\\mathrm{rm}}\\) .",
+        subgroups: [
+          {
+            folder: "rm_01",
+            prefix: "rm_01",
+            label: "RM 01"
+          },
+          {
+            folder: "rm_02",
+            prefix: "rm_02",
+            label: "RM 02"
+          }
+        ]
+      },
+      {
+        label: "Time Modification",
+        description: "Time modification using a single buffer and two read pointers. The relative speed between read and write pointers controls pitch: faster reading produces time-compression and higher pitch, while slower reading produces time-expansion and lower pitch. An energy-preserving cross-fade synchronized with the modulation smoothly transitions between read pointers before reset occurs.",
+        subgroups: [
+          {
+            folder: "ps_01",
+            prefix: "ps_01",
+            label: "PS 01", 
+            description: " Pitch shift up by octave. Window duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 2, 2, 4\\)."
+          },
+          {
+            folder: "ps_02",
+            prefix: "ps_02",
+            label: "PS 02", 
+            description: " Pitch shift up by seven semitones. Window duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 2, 2, 4\\)."
+          },
+          {
+            folder: "ps_03",
+            prefix: "ps_03",
+            label: "PS 03",
+            description: " Pitch shift up by seven semitones. Window duration: \\( \\sim 2.7 \\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 2, 2, 4\\)."  
+          },
+          {
+            folder: "ps_04",
+            prefix: "ps_04",
+            label: "PS 04",
+            description: " Pitch shift up by seven semitones. Window duration: \\(  \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 2, 2, 4\\)."
+          },
+          {
+            folder: "ps_05",
+            prefix: "ps_05",
+            label: "PS 05",
+            description: " Pitch shift up by seven semitones. Window duration: \\(  \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
+          }
+        ]
+      },
+      { 
+        label: "Granular Time Modification", 
+        description: "Based on the same ring buffer architecture as the time modification approach. The read pointer position is updated every \\(L_w\\) samples to a randomly selected index behind the write pointer by \\(n_i \\sim \\mathcal{U}(L_w, L_{\\mathrm{ring}})\\) samples, where \\(L_{\\mathrm{ring}}\\) is the buffer size.",
+        subgroups: [
+          { 
+            folder: "gran_01", 
+            prefix: "gran_01", 
+            label: "Granular 01", 
+            description: " Pitch shift up by octave. Grain duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 2, 2, 4\\)."
+            },
+          { 
+            folder: "gran_02", 
+            prefix: "gran_02", 
+            label: "Granular 02", 
+            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 2, 2, 4\\)."
+          },
+          { 
+            folder: "gran_03", 
+            prefix: "gran_03", 
+            label: "Granular 03", 
+            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 2.7 \\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 2, 2, 4\\)."
+          },
+          { 
+            folder: "gran_04", 
+            prefix: "gran_04", 
+            label: "Granular 04", 
+            description: "Pitch shift up by seven semitones. Grain duration: \\(  \\sim 21.3\\) ms. \\( f_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
+          },
+          { 
+            folder: "gran_05", 
+            prefix: "gran_05", 
+            label: "Granular 05",
+            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 2, 4, 6, 8\\)."
+          }
+        ]
+      }
+    ];
+
+    const previewPlotBounds = {
+      left: 0.082,
+      right: 0.992
+    };
+
+    const prettyName = (raw) => {
+      const map = {
+        "clean_singing_02": "singing voice",
+        "clouds_01": "percussion",
+        "clouds_02": "fx",
+        "guitar_01": "guitar tapping",
+        "synth_01": "synth"
+      };
+      return map[raw] || raw.replaceAll("_", " ");
+    };
+
+    const makeTrack = (group, clipId) => {
+      // dafx26-dry-short uses unprefixed filenames, others use prefixed
+      const basename = group.folder === "dafx26-dry-short" ? clipId : `${group.prefix}_${clipId}`;
+      return {
+        title: prettyName(clipId),
+        src: `clips/${group.folder}/${basename}.wav`,
+        img: `figures/thumbs/${group.folder}/${basename}.png`
+      };
+    };
+
+    const attachSwitchPlayer = (mountPoint, tracks) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "switch-player";
+
+      const body = document.createElement("div");
+      body.className = "player-body";
+
+      const thumbWrap = document.createElement("div");
+      thumbWrap.className = "thumb-wrap";
+
+      const image = document.createElement("img");
+      image.className = "thumb";
+      image.alt = "Waveform and spectrogram preview";
+
+      const playhead = document.createElement("div");
+      playhead.className = "playhead";
+
+      const list = document.createElement("div");
+      list.className = "track-list";
+
+      const footer = document.createElement("div");
+      footer.className = "player-footer";
+
+      const selectedLabel = document.createElement("p");
+      const timelineWrap = document.createElement("div");
+      timelineWrap.className = "timeline-wrap";
+      const timelineSlider = document.createElement("input");
+      timelineSlider.type = "range";
+      timelineSlider.className = "timeline-slider";
+      timelineSlider.min = "0";
+      timelineSlider.max = "1";
+      timelineSlider.step = "0.001";
+      timelineSlider.value = "0";
+      const controlsRow = document.createElement("div");
+      controlsRow.className = "controls-row";
+      const playToggle = document.createElement("button");
+      playToggle.type = "button";
+      playToggle.className = "play-toggle";
+      playToggle.textContent = "Play";
+      const timeLabel = document.createElement("span");
+      timeLabel.className = "time-label";
+      timeLabel.textContent = "0:00 / 0:00";
+      const audio = document.createElement("audio");
+      audio.className = "audio-element";
+      audio.controls = false;
+      audio.preload = "none";
+
+      footer.appendChild(selectedLabel);
+      timelineWrap.appendChild(timelineSlider);
+      footer.appendChild(timelineWrap);
+      controlsRow.appendChild(playToggle);
+      controlsRow.appendChild(timeLabel);
+      footer.appendChild(controlsRow);
+      footer.appendChild(audio);
+
+      const source = document.createElement("source");
+      source.type = "audio/wav";
+      audio.appendChild(source);
+
+      let rafId = null;
+
+      const formatTime = (seconds) => {
+        if (!Number.isFinite(seconds) || seconds < 0) {
+          return "0:00";
+        }
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = Math.floor(seconds % 60);
+        return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+      };
+
+      const updateTimeLabel = () => {
+        const current = formatTime(audio.currentTime);
+        const total = formatTime(audio.duration);
+        timeLabel.textContent = `${current} / ${total}`;
+      };
+
+      const updatePlayButton = () => {
+        playToggle.textContent = audio.paused ? "Play" : "Pause";
+      };
+
+      const stopPlayheadLoop = () => {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      };
+
+      const updatePlayhead = () => {
+        if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
+          playhead.classList.remove("visible");
+          playhead.style.left = `${previewPlotBounds.left * 100}%`;
+          timelineSlider.value = "0";
+          updateTimeLabel();
+          updatePlayButton();
+          return;
+        }
+
+        const ratio = Math.min(Math.max(audio.currentTime / audio.duration, 0), 1);
+        const boundedRatio = previewPlotBounds.left + ratio * (previewPlotBounds.right - previewPlotBounds.left);
+        playhead.style.left = `${boundedRatio * 100}%`;
+        timelineSlider.value = String(ratio);
+        playhead.classList.add("visible");
+        updateTimeLabel();
+        updatePlayButton();
+      };
+
+      const startPlayheadLoop = () => {
+        stopPlayheadLoop();
+        const tick = () => {
+          updatePlayhead();
+          if (!audio.paused && !audio.ended) {
+            rafId = requestAnimationFrame(tick);
+          } else {
+            rafId = null;
+          }
+        };
+        rafId = requestAnimationFrame(tick);
+      };
+
+      const setTrack = (index) => {
+        const playing = !audio.paused;
+        const track = tracks[index];
+        source.src = track.src;
+        image.src = track.img;
+        image.onerror = () => {
+          image.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='960' height='360'%3E%3Crect width='100%25' height='100%25' fill='%23f5f7fd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='22' fill='%23617290'%3ERun scripts/generate_previews.py to create preview images%3C/text%3E%3C/svg%3E";
+          image.onerror = null;
+        };
+        selectedLabel.textContent = `Selected clip: ${track.title}`;
+        audio.load();
+        playhead.classList.remove("visible");
+        playhead.style.left = `${previewPlotBounds.left * 100}%`;
+        timelineSlider.value = "0";
+        if (playing) {
+          audio.play();
+        }
+        [...list.querySelectorAll(".track-option")].forEach((button, buttonIndex) => {
+          button.classList.toggle("active", buttonIndex === index);
+        });
+        updateTimeLabel();
+        updatePlayButton();
+      };
+
+      tracks.forEach((track, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "track-option";
+        button.textContent = track.title;
+        button.addEventListener("click", () => setTrack(index));
+        list.appendChild(button);
+      });
+
+      thumbWrap.appendChild(image);
+      thumbWrap.appendChild(playhead);
+      body.appendChild(thumbWrap);
+      body.appendChild(list);
+      wrapper.appendChild(body);
+      wrapper.appendChild(footer);
+      mountPoint.appendChild(wrapper);
+
+      audio.addEventListener("play", startPlayheadLoop);
+      audio.addEventListener("pause", () => {
+        stopPlayheadLoop();
+        updatePlayhead();
+      });
+      audio.addEventListener("ended", () => {
+        stopPlayheadLoop();
+        updatePlayhead();
+      });
+      audio.addEventListener("loadedmetadata", updatePlayhead);
+      audio.addEventListener("timeupdate", updatePlayhead);
+      audio.addEventListener("seeked", updatePlayhead);
+      audio.addEventListener("loadedmetadata", updateTimeLabel);
+      playToggle.addEventListener("click", async () => {
+        if (audio.paused) {
+          await audio.play();
+        } else {
+          audio.pause();
+        }
+        updatePlayButton();
+      });
+      timelineSlider.addEventListener("input", () => {
+        if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
+          return;
+        }
+        const ratio = Math.min(Math.max(Number(timelineSlider.value), 0), 1);
+        audio.currentTime = ratio * audio.duration;
+        updatePlayhead();
+      });
+
+      setTrack(0);
+    };
+
+    const root = document.getElementById("audio-groups");
+
+    groups.forEach((group) => {
+      const section = document.createElement("section");
+      section.className = "group";
+
+      const heading = document.createElement("h3");
+      heading.textContent = group.label;
+      section.appendChild(heading);
+      
+      const desc = document.createElement("p");
+      desc.className = "group-description";
+      desc.textContent = group.description;
+      section.appendChild(desc);
+
+      // Handle subgroups
+      if (group.subgroups.length === 1) {
+        // Single subgroup: render player directly in main group
+        const subgroup = group.subgroups[0];
+        if (subgroup.description) {
+          const subDesc = document.createElement("p");
+          subDesc.className = "subgroup-description";
+          subDesc.textContent = subgroup.description;
+          section.appendChild(subDesc);
+        }
+        const tracks = clipIds.map((clipId) => makeTrack(subgroup, clipId));
+        attachSwitchPlayer(section, tracks);
+      } else {
+        // Multiple subgroups: create nested sections
+        group.subgroups.forEach((subgroup) => {
+          const subSection = document.createElement("div");
+          subSection.className = "subgroup";
+          
+          const subHeading = document.createElement("h4");
+          subHeading.textContent = subgroup.label;
+          subSection.appendChild(subHeading);
+          
+          if (subgroup.description) {
+            const subDesc = document.createElement("p");
+            subDesc.className = "subgroup-description";
+            subDesc.textContent = subgroup.description;
+            subSection.appendChild(subDesc);
+          }
+          
+          const tracks = clipIds.map((clipId) => makeTrack(subgroup, clipId));
+          attachSwitchPlayer(subSection, tracks);
+          
+          section.appendChild(subSection);
+        });
+      }
+
+      root.appendChild(section);
+    });
+
+    if (window.MathJax?.typesetPromise) {
+      window.MathJax.typesetPromise([root]);
+    }
+  </script>
+</body>
+</html>
