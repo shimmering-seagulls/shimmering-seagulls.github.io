@@ -212,6 +212,35 @@
       cursor: pointer;
     }
 
+    .mix-row {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      margin: 0.15rem 0 0.45rem;
+    }
+
+    .mix-label {
+      color: var(--muted);
+      font-size: 0.88rem;
+      font-weight: 600;
+      min-width: 58px;
+    }
+
+    .mix-slider {
+      flex: 1;
+      margin: 0;
+      accent-color: #f98e09;
+      cursor: pointer;
+    }
+
+    .mix-value {
+      color: var(--muted);
+      font-size: 0.84rem;
+      white-space: nowrap;
+      min-width: 110px;
+      text-align: right;
+    }
+
     .controls-row {
       display: flex;
       align-items: center;
@@ -323,7 +352,14 @@
           {
             folder: "cfwr_01",
             prefix: "cfwr_01",
-            label: "CFWR"
+            label: "CFWR 01", 
+            description: "\\(\\alpha=1\\)"
+          },
+          {
+            folder: "cfwr_02",
+            prefix: "cfwr_02",
+            label: "CFWR 02",
+            description: "\\(\\alpha=0.5\\)"
           }
         ]
       },
@@ -450,8 +486,21 @@
       return {
         title: prettyName(clipId),
         src: `clips/${group.folder}/${basename}.wav`,
+        drySrc: `clips/dry-matched/${group.folder}/${basename}.wav`,
+        dryFallbackSrc: `clips/dafx26-dry-short/${clipId}.wav`,
+        isDryReference: group.folder === "dafx26-dry-short",
         img: `figures/thumbs/${group.folder}/${basename}.png`
       };
+    };
+
+    const playerRegistry = [];
+
+    const stopAllPlayers = (exceptAudio = null) => {
+      playerRegistry.forEach((player) => {
+        if (player.audio !== exceptAudio) {
+          player.stop();
+        }
+      });
     };
 
     const attachSwitchPlayer = (mountPoint, tracks) => {
@@ -478,6 +527,24 @@
       footer.className = "player-footer";
 
       const selectedLabel = document.createElement("p");
+
+      const mixRow = document.createElement("div");
+      mixRow.className = "mix-row";
+      const mixLabel = document.createElement("span");
+      mixLabel.className = "mix-label";
+      mixLabel.textContent = "Dry/Wet";
+      const mixSlider = document.createElement("input");
+      mixSlider.type = "range";
+      mixSlider.className = "mix-slider";
+      mixSlider.min = "0";
+      mixSlider.max = "100";
+      mixSlider.step = "1";
+      mixSlider.value = "100";
+      const mixValue = document.createElement("span");
+      mixValue.className = "mix-value";
+      mixValue.textContent = "0% dry / 100% wet";
+      mixRow.append(mixLabel, mixSlider, mixValue);
+
       const timelineWrap = document.createElement("div");
       timelineWrap.className = "timeline-wrap";
       const timelineSlider = document.createElement("input");
@@ -501,19 +568,69 @@
       audio.controls = false;
       audio.preload = "none";
 
+      const dryAudio = document.createElement("audio");
+      dryAudio.className = "audio-element";
+      dryAudio.controls = false;
+      dryAudio.preload = "none";
+
+      const stopThisPlayer = () => {
+        audio.pause();
+        dryAudio.pause();
+      };
+
+      playerRegistry.push({
+        audio,
+        stop: stopThisPlayer
+      });
+
       footer.appendChild(selectedLabel);
+      footer.appendChild(mixRow);
       timelineWrap.appendChild(timelineSlider);
       footer.appendChild(timelineWrap);
       controlsRow.appendChild(playToggle);
       controlsRow.appendChild(timeLabel);
       footer.appendChild(controlsRow);
       footer.appendChild(audio);
+      footer.appendChild(dryAudio);
 
       const source = document.createElement("source");
       source.type = "audio/wav";
       audio.appendChild(source);
 
+      const drySource = document.createElement("source");
+      drySource.type = "audio/wav";
+      dryAudio.appendChild(drySource);
+
       let rafId = null;
+      let currentTrack = null;
+
+      const applyMix = () => {
+        const wet = Number(mixSlider.value) / 100;
+        const dry = 1 - wet;
+
+        if (!currentTrack || currentTrack.isDryReference) {
+          audio.volume = 1;
+          dryAudio.volume = 0;
+          mixValue.textContent = "Reference";
+          return;
+        }
+
+        audio.volume = wet;
+        dryAudio.volume = dry;
+        mixValue.textContent = `${Math.round(dry * 100)}% dry / ${Math.round(wet * 100)}% wet`;
+      };
+
+      const playBoth = async () => {
+        if (!currentTrack || currentTrack.isDryReference) {
+          await audio.play();
+          return;
+        }
+
+        dryAudio.currentTime = audio.currentTime;
+        const dryPlayPromise = dryAudio.play().catch(() => {});
+        await audio.play();
+        await dryPlayPromise;
+      };
 
       const formatTime = (seconds) => {
         if (!Number.isFinite(seconds) || seconds < 0) {
@@ -576,19 +693,24 @@
       const setTrack = (index) => {
         const playing = !audio.paused;
         const track = tracks[index];
+        currentTrack = track;
         source.src = track.src;
+        drySource.src = track.drySrc;
         image.src = track.img;
         image.onerror = () => {
           image.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='960' height='360'%3E%3Crect width='100%25' height='100%25' fill='%23f5f7fd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='Arial' font-size='22' fill='%23617290'%3ERun scripts/generate_previews.py to create preview images%3C/text%3E%3C/svg%3E";
           image.onerror = null;
         };
         selectedLabel.textContent = `Selected clip: ${track.title}`;
+        mixRow.style.display = track.isDryReference ? "none" : "flex";
         audio.load();
+        dryAudio.load();
         playhead.classList.remove("visible");
         playhead.style.left = `${previewPlotBounds.left * 100}%`;
         timelineSlider.value = "0";
+        applyMix();
         if (playing) {
-          audio.play();
+          playBoth();
         }
         [...list.querySelectorAll(".track-option")].forEach((button, buttonIndex) => {
           button.classList.toggle("active", buttonIndex === index);
@@ -614,12 +736,17 @@
       wrapper.appendChild(footer);
       mountPoint.appendChild(wrapper);
 
-      audio.addEventListener("play", startPlayheadLoop);
+      audio.addEventListener("play", () => {
+        stopAllPlayers(audio);
+        startPlayheadLoop();
+      });
       audio.addEventListener("pause", () => {
+        dryAudio.pause();
         stopPlayheadLoop();
         updatePlayhead();
       });
       audio.addEventListener("ended", () => {
+        dryAudio.pause();
         stopPlayheadLoop();
         updatePlayhead();
       });
@@ -627,11 +754,31 @@
       audio.addEventListener("timeupdate", updatePlayhead);
       audio.addEventListener("seeked", updatePlayhead);
       audio.addEventListener("loadedmetadata", updateTimeLabel);
+
+      dryAudio.addEventListener("error", () => {
+        if (!currentTrack || currentTrack.isDryReference || drySource.src.includes("dafx26-dry-short")) {
+          return;
+        }
+        drySource.src = currentTrack.dryFallbackSrc;
+        dryAudio.load();
+
+        if (!audio.paused) {
+          const restartFromFallback = async () => {
+            dryAudio.removeEventListener("canplay", restartFromFallback);
+            dryAudio.currentTime = audio.currentTime;
+            await dryAudio.play().catch(() => {});
+          };
+          dryAudio.addEventListener("canplay", restartFromFallback);
+        }
+      });
+
       playToggle.addEventListener("click", async () => {
         if (audio.paused) {
-          await audio.play();
+          stopAllPlayers(audio);
+          await playBoth();
         } else {
           audio.pause();
+          dryAudio.pause();
         }
         updatePlayButton();
       });
@@ -640,9 +787,15 @@
           return;
         }
         const ratio = Math.min(Math.max(Number(timelineSlider.value), 0), 1);
-        audio.currentTime = ratio * audio.duration;
+        const nextTime = ratio * audio.duration;
+        audio.currentTime = nextTime;
+        if (currentTrack && !currentTrack.isDryReference) {
+          dryAudio.currentTime = nextTime;
+        }
         updatePlayhead();
       });
+
+      mixSlider.addEventListener("input", applyMix);
 
       setTrack(0);
     };
