@@ -55,6 +55,34 @@
       padding: 1.25rem;
     }
 
+    .page-index {
+      margin-top: 1rem;
+    }
+
+    .index-list {
+      margin: 0.85rem 0 0;
+      padding-left: 1.25rem;
+      color: var(--text);
+    }
+
+    .index-list li {
+      margin: 0.4rem 0;
+    }
+
+    .index-list .index-sublist {
+      margin: 0.4rem 0 0.2rem;
+      padding-left: 1.15rem;
+      color: var(--muted);
+    }
+
+    .index-list a {
+      color: var(--text);
+    }
+
+    .index-list a:hover {
+      color: var(--accent);
+    }
+
     .authors,
     .abstract,
     .repo-link { margin: 0.45rem 0; }
@@ -281,6 +309,38 @@
       font-size: 0.92rem;
     }
 
+    .back-to-top {
+      position: fixed;
+      right: 1rem;
+      bottom: 1rem;
+      z-index: 50;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--text);
+      box-shadow: 0 8px 24px rgba(18, 23, 34, 0.12);
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    }
+
+    .back-to-top:hover {
+      transform: translateY(-2px);
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(18, 23, 34, 0.16);
+      text-decoration: none;
+    }
+
+    .back-to-top:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+
     @media (max-width: 800px) {
       .player-body {
         grid-template-columns: 1fr;
@@ -289,28 +349,37 @@
   </style>
 </head>
 <body>
-  <main class="container">
+  <main class="container" id="top">
     <section class="top-meta">
-      <h1>Shimmer Reverberation:<br>Audio Effects Violating the Laws of Physics</h1>
+      <h1>Shimmer Reverberation<br>with Nonlinear Feedback Delay Networks</h1>
       <p class="authors"><span class="label">Authors:</span> ~ </p>
-      <p class="content"><span class="label">Content:</span>This companion page provides audio examples to showcases the effect of five different nonlinear Feedback Delay Networks (FDNs).</p>
+      <p class="content"><span class="label">Content:</span>This companion page provides audio examples that showcase the effect of five different nonlinear Feedback Delay Networks (FDNs).</p>
+      <p class="content"><span class="label">Audio Instructions:</span>Select an audio clip below and click Play to listen to the processed signal mixed with a dry reference. You can also adjust the dry/wet balance and the playhead position to explore the sound characteristics in more detail. A mix value of 100 corresponds to 0% dry / 100% wet, while a mix value of 0 corresponds to 100% dry / 0% wet.</p>
+      <p class="content"><span class="label">Note:</span>If you hear a noticeable delay between the dry and wet audio when you press Play, pause playback and then resume. This usually resolves the issue.</p>
       <p class="repo-link"><span class="label">Code:</span><a href="https://github.com/shimmering-seagulls" target="_blank" rel="noopener noreferrer">https://shimmering-seagulls.github.io/</a></p>
     </section>
 
-    <section>
+    <section class="top-meta page-index" id="content-index">
+      <h2>Quick Index</h2>
+      <ul id="content-index-items" class="index-list"></ul>
+    </section>
+
+    <section id="structure-section">
       <h2>Structure of the Nonlinear FDN</h2>
       <div class="figure-wrap">
           <img src="figures/structure_fdn_big.png" alt="Structure of the nonlinear FDN shimmer reverberation system" />
-           <p class="figure-caption"><b>Proposed approach</b>: the nonlinear operations \(f_i\) are placed in the feedback loop of an FDN. In this configuration, the output of the nonlinearity feeds the orthogonal matrix \(\mathbf{U}\), which distributes it across the FDN channels, generating distinct sound textures depending on the chosen FDN parameters.</p>
+           <p class="figure-caption"><b>Proposed approach</b>: the nonlinear operations \(\text{NL}_i\) are placed in the feedback loop of an FDN. In this configuration, the output of the nonlinearity feeds the orthogonal matrix \(\mathbf{U}\), which distributes it across the FDN channels, generating distinct sound textures depending on the chosen FDN parameters.</p>
       </div>
     </section>
 
-    <section>
+    <section id="audio-examples-section">
       <h2>Audio Examples</h2>
       <div id="audio-groups"></div>
-      <p class="footnote">Website vibe-coded with Github Copilot (Mostly with GTP-5.3-Codex) .</p>
+      <p class="footnote">Website vibe-coded with GitHub Copilot (mostly with GPT-5.3 Codex).</p>
     </section>
   </main>
+
+  <a class="back-to-top" href="#top" aria-label="Back to top">↑</a>
 
   <script>
     const clipIds = [
@@ -335,7 +404,7 @@
       },
       { 
         label: "Linear",
-        description: "Linear FDN, i.e. \\( f_i(x) = x \\; \\forall \\; i \\) , included as a reference point.",
+        description: "Linear FDN, i.e. \\( \\text{NL}_i(x) = x \\; \\forall \\; i \\) , included as a reference point.",
         subgroups: [
           { 
             folder: "vanilla", 
@@ -346,7 +415,7 @@
         ]
       },
       {
-        label: "Controlled Full Wave Rectifier",
+        label: "Controllable Full Wave Rectifier",
         description: "The output of the CFWR is defined as: \\[ y(n) = g\\left((1-\\alpha)x(n) + \\alpha|x(n)|\\right), \\] where \\(0\\leq\\alpha\\leq1\\) controls the distortion strength, and scaling factor \\(g=\\sqrt{2-2|\\alpha-1/2|}\\) helps maintain the signal power when \\(\\alpha<1\\).",
         subgroups: [
           {
@@ -418,37 +487,37 @@
             folder: "ps_01",
             prefix: "ps_01",
             label: "PS 01", 
-            description: " Pitch shift up by octave. Window duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
+            description: " Pitch shift up by octave. Window duration: \\( \\sim 21.3 \\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
           },
           {
             folder: "ps_02",
             prefix: "ps_02",
             label: "PS 02", 
-            description: " Pitch shift up by seven semitones. Window duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
+            description: " Pitch shift up by seven semitones. Window duration: \\( \\sim 21.3 \\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
           },
           {
             folder: "ps_03",
             prefix: "ps_03",
             label: "PS 03",
-            description: " Pitch shift up by seven semitones. Window duration: \\( \\sim 2.7 \\) ms. \\( f_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."  
+            description: " Pitch shift up by seven semitones. Window duration: \\( \\sim 2.7 \\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."  
           },
           {
             folder: "ps_04",
             prefix: "ps_04",
             label: "PS 04",
-            description: " Pitch shift up by seven semitones. Window duration: \\(  \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 2, 3, 4\\)."
+            description: " Pitch shift up by seven semitones. Window duration: \\(  \\sim 21.3 \\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 1, 2, 3, 4\\)."
           },
           {
             folder: "ps_05",
             prefix: "ps_05",
             label: "PS 05",
-            description: " Pitch shift up by seven semitones. Window duration: \\(  \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 3, 6, 8\\)."
+            description: " Pitch shift up by seven semitones. Window duration: \\(  \\sim 21.3 \\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 1, 3, 6, 8\\)."
           }, 
           {
             folder: "ps_06",
             prefix: "ps_06",
             label: "PS 06",
-            description: " Pitch shift down by seven semitones. Window duration: \\(  \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
+            description: " Pitch shift down by seven semitones. Window duration: \\(  \\sim 21.3 \\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
           }
         ]
       },
@@ -460,37 +529,37 @@
             folder: "gran_01", 
             prefix: "gran_01", 
             label: "Granular 01", 
-            description: " Pitch shift up by octave. Grain duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
+            description: " Pitch shift up by octave. Grain duration: \\( \\sim 21.3 \\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
             },
           { 
             folder: "gran_02", 
             prefix: "gran_02", 
             label: "Granular 02", 
-            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
+            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 21.3 \\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
           },
           { 
             folder: "gran_03", 
             prefix: "gran_03", 
             label: "Granular 03", 
-            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 2.7 \\) ms. \\( f_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
+            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 2.7 \\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 5, 6, 7, 8\\)."
           },
           { 
             folder: "gran_04", 
             prefix: "gran_04", 
             label: "Granular 04", 
-            description: "Pitch shift up by seven semitones. Grain duration: \\(  \\sim 21.3\\) ms. \\( f_i(x) = x \\)  for \\(i = 1, 2, 3, 4\\)."
+            description: "Pitch shift up by seven semitones. Grain duration: \\(  \\sim 21.3\\) ms. \\( \\text{NL}_i(x) = x \\)  for \\(i = 1, 2, 3, 4\\)."
           },
           { 
             folder: "gran_05", 
             prefix: "gran_05", 
             label: "Granular 05",
-            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 21.3 \\) ms. \\( f_i(x) = x \\) for \\(i = 1, 3, 6, 8\\)."
+            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 21.3 \\) ms. \\( \\text{NL}_i(x) = x \\) for \\(i = 1, 3, 6, 8\\)."
           },
           { 
             folder: "gran_07", 
             prefix: "gran_07", 
             label: "Granular 07",
-            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 21.3 \\) ms, but buffer size 4 times larger than before. \\( f_i(x) = x \\) for \\(i = 5, 6, 7, 8\\)."
+            description: "Pitch shift up by seven semitones. Grain duration: \\( \\sim 21.3 \\) ms, but buffer size 4 times larger than before. \\( \\text{NL}_i(x) = x \\) for \\(i = 5, 6, 7, 8\\)."
           }
         ]
       }
@@ -500,6 +569,21 @@
       left: 0.082,
       right: 0.992
     };
+
+    const audioGroupIndexItems = [];
+
+    const contentIndexItems = [
+      {
+        title: "Structure of the Nonlinear FDN",
+        href: "#structure-section"
+      },
+      {
+        title: "Audio Examples",
+        href: "#audio-examples-section"
+      }
+    ];
+
+    const indexRoot = document.getElementById("content-index-items");
 
     const prettyName = (raw) => {
       const map = {
@@ -963,10 +1047,17 @@
     groups.forEach((group) => {
       const section = document.createElement("section");
       section.className = "group";
+      const sectionId = `${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-section`;
+      section.id = sectionId;
 
       const heading = document.createElement("h3");
       heading.textContent = group.label;
       section.appendChild(heading);
+
+      audioGroupIndexItems.push({
+        title: group.label,
+        href: `#${sectionId}`
+      });
       
       const desc = document.createElement("p");
       desc.className = "group-description";
@@ -1012,9 +1103,40 @@
       root.appendChild(section);
     });
 
+    contentIndexItems.forEach((item) => {
+      const listItem = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = item.href;
+      link.textContent = item.title;
+      listItem.appendChild(link);
+
+      if (item.title === "Audio Examples") {
+        const nestedList = document.createElement("ul");
+        nestedList.className = "index-sublist";
+
+        audioGroupIndexItems.forEach((groupItem) => {
+          const nestedItem = document.createElement("li");
+          const nestedLink = document.createElement("a");
+          nestedLink.href = groupItem.href;
+          nestedLink.textContent = groupItem.title;
+          nestedItem.appendChild(nestedLink);
+          nestedList.appendChild(nestedItem);
+        });
+
+        listItem.appendChild(nestedList);
+      }
+
+      indexRoot.appendChild(listItem);
+    });
+
     if (window.MathJax?.typesetPromise) {
-      window.MathJax.typesetPromise([root]);
+      window.MathJax.typesetPromise([document.body]);
     }
+
+    document.querySelector(".back-to-top")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      document.getElementById("top")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   </script>
 </body>
 </html>
