@@ -906,7 +906,11 @@
       };
 
       const updatePlayButton = () => {
-        playToggle.textContent = audio.paused ? "Play" : "Pause";
+        if (usingWebAudio) {
+          playToggle.textContent = isPlaying ? "Pause" : "Play";
+        } else {
+          playToggle.textContent = audio.paused ? "Play" : "Pause";
+        }
       };
 
       const stopPlayheadLoop = () => {
@@ -949,7 +953,8 @@
         stopPlayheadLoop();
         const tick = () => {
           updatePlayhead();
-          if (!audio.paused) {
+          const keepRunning = usingWebAudio ? isPlaying : !audio.paused;
+          if (keepRunning) {
             rafId = requestAnimationFrame(tick);
           } else {
             rafId = null;
