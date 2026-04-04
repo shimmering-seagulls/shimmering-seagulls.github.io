@@ -664,51 +664,21 @@
       const timeLabel = document.createElement("span");
       timeLabel.className = "time-label";
       timeLabel.textContent = "0:00 / 0:00";
-      // We'll prefer using the Web Audio API for sample-accurate sync
-      // between wet and dry signals. If unavailable or decoding fails,
-      // we fall back to the legacy dual <audio> elements approach.
       const audio = document.createElement("audio");
       audio.className = "audio-element";
       audio.controls = false;
       audio.preload = "none";
-      audio.loop = true; // used as fallback only
+      audio.loop = true;
 
       const dryAudio = document.createElement("audio");
       dryAudio.className = "audio-element";
       dryAudio.controls = false;
       dryAudio.preload = "none";
-      dryAudio.loop = true; // used as fallback only
+      dryAudio.loop = true;
 
-      // Web Audio state
-      let audioCtx = null;
-      let wetGain = null;
-      let dryGain = null;
-      let wetBuffer = null;
-      let dryBuffer = null;
-      let wetSource = null;
-      let drySourceNode = null;
-      let usingWebAudio = false;
-      let playbackStartTime = 0; // audioCtx.currentTime when play started
-      let playbackOffset = 0; // seconds into buffer where playback started
-      let isPlaying = false;
-
-      const stopThisPlayer = async () => {
-        if (usingWebAudio && audioCtx) {
-          if (wetSource) {
-            try { wetSource.stop(); } catch (e) {}
-            wetSource.disconnect();
-            wetSource = null;
-          }
-          if (drySourceNode) {
-            try { drySourceNode.stop(); } catch (e) {}
-            drySourceNode.disconnect();
-            drySourceNode = null;
-          }
-          isPlaying = false;
-        } else {
-          audio.pause();
-          dryAudio.pause();
-        }
+      const stopThisPlayer = () => {
+        audio.pause();
+        dryAudio.pause();
       };
 
       playerRegistry.push({
@@ -738,7 +708,6 @@
       let currentTrack = null;
       let dryRetryTimer = null;
       let isResyncingBoth = false;
-      let lastDecodedTrack = null;
 
       const clearDryRetry = () => {
         if (dryRetryTimer !== null) {
@@ -748,68 +717,85 @@
       };
 
       const tryStartDryPlayback = async () => {
-        if (!currentTrack || currentTrack.isDryReference) return;
-
-        if (usingWebAudio && audioCtx && wetBuffer && dryBuffer) {
-          // start both buffer sources scheduled together
-          await playWebAudioSources(playbackOffset);
+        if (!currentTrack || currentTrack.isDryReference || audio.paused) {
           return;
         }
 
-        // fallback to <audio>
-        if (audio.paused) return;
         dryAudio.currentTime = audio.currentTime;
         await dryAudio.play().catch(() => {});
       };
 
-      const reloadBothAligned = async (resumeTime = 0) => {
-        if (!currentTrack || currentTrack.isDryReference || isResyncingBoth) return;
+      const reloadBothAligned = (resumeTime = 0) => {
+        if (!currentTrack || currentTrack.isDryReference || isResyncingBoth) {
+          return;
+        }
 
         const targetTime = Number.isFinite(resumeTime) ? Math.max(0, resumeTime) : 0;
         isResyncingBoth = true;
         clearDryRetry();
 
-        // Stop any running playback
-        await stopThisPlayer();
+        audio.pause();
+        dryAudio.pause();
 
-        try {
-          // Try Web Audio path first
-          if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let wetReady = false;
+        let dryReady = false;
+
+        const finish = () => {
+          audio.removeEventListener("canplay", onWetCanPlay);
+          dryAudio.removeEventListener("canplay", onDryCanPlay);
+          clearTimeout(readyFallbackTimer);
+          isResyncingBoth = false;
+        };
+
+        const maybeRestart = async () => {
+          if (!wetReady || !dryReady) {
+            return;
           }
 
-          // If buffers aren't decoded for this track, decode them now
-          if (lastDecodedTrack !== currentTrack) {
-            await decodeBuffersForTrack(currentTrack);
+          finish();
+
+          if (!currentTrack || currentTrack.isDryReference) {
+            return;
           }
 
-          // schedule playback from targetTime
-          playbackOffset = targetTime % (wetBuffer ? wetBuffer.duration : 0);
-          playbackStartTime = audioCtx.currentTime;
-          isPlaying = true;
-          await playWebAudioSources(playbackOffset);
-        } catch (err) {
-          // fallback to legacy reload using <audio>
           audio.currentTime = targetTime;
           dryAudio.currentTime = targetTime;
+
           await audio.play().catch(() => {});
           await dryAudio.play().catch(() => {});
-        } finally {
-          isResyncingBoth = false;
-        }
+
+          if (dryAudio.paused) {
+            startDryRetry();
+          }
+        };
+
+        const onWetCanPlay = () => {
+          wetReady = true;
+          maybeRestart();
+        };
+
+        const onDryCanPlay = () => {
+          dryReady = true;
+          maybeRestart();
+        };
+
+        const readyFallbackTimer = setTimeout(() => {
+          wetReady = true;
+          dryReady = true;
+          maybeRestart();
+        }, 700);
+
+        audio.addEventListener("canplay", onWetCanPlay);
+        dryAudio.addEventListener("canplay", onDryCanPlay);
+
+        audio.load();
+        dryAudio.load();
       };
 
       const startDryRetry = () => {
         clearDryRetry();
         dryRetryTimer = setInterval(() => {
-          if (!currentTrack || currentTrack.isDryReference || isResyncingBoth) {
-            clearDryRetry();
-            return;
-          }
-
-          if (usingWebAudio) {
-            // If using WebAudio, we shouldn't need retries; attempt a reload
-            reloadBothAligned(playbackOffset).catch(() => {});
+          if (audio.paused || !currentTrack || currentTrack.isDryReference || isResyncingBoth) {
             clearDryRetry();
             return;
           }
@@ -819,7 +805,7 @@
             return;
           }
 
-          reloadBothAligned(audio.currentTime).catch(() => {});
+          reloadBothAligned(audio.currentTime);
         }, 300);
       };
 
@@ -828,58 +814,27 @@
         const dry = 1 - wet;
 
         if (!currentTrack || currentTrack.isDryReference) {
-          // reference: only wet (which is the unprocessed signal)
-          if (!usingWebAudio) {
-            audio.volume = 1;
-            dryAudio.volume = 0;
-          } else {
-            if (wetGain) wetGain.gain.value = 1;
-            if (dryGain) dryGain.gain.value = 0;
-          }
+          audio.volume = 1;
+          dryAudio.volume = 0;
           mixValue.textContent = "Reference";
           return;
         }
 
-        if (usingWebAudio) {
-          if (wetGain) wetGain.gain.value = wet;
-          if (dryGain) dryGain.gain.value = dry;
-        } else {
-          audio.volume = wet;
-          dryAudio.volume = dry;
-        }
-
+        audio.volume = wet;
+        dryAudio.volume = dry;
         mixValue.textContent = `${Math.round(dry * 100)}% dry / ${Math.round(wet * 100)}% wet`;
       };
 
       const playBoth = async () => {
         if (!currentTrack || currentTrack.isDryReference) {
-          if (usingWebAudio) {
-            playbackOffset = 0;
-            playbackStartTime = audioCtx ? audioCtx.currentTime : 0;
-            isPlaying = true;
-            await playWebAudioSources(0);
-          } else {
-            await audio.play();
-          }
+          await audio.play();
           return;
         }
 
-        if (usingWebAudio) {
-          // If buffers are not decoded, decode first
-          if (lastDecodedTrack !== currentTrack) {
-            await decodeBuffersForTrack(currentTrack);
-          }
-          playbackOffset = audio.currentTime || 0;
-          playbackStartTime = audioCtx.currentTime - playbackOffset;
-          isPlaying = true;
-          if (audioCtx.state === 'suspended') await audioCtx.resume();
-          await playWebAudioSources(playbackOffset);
-          // start UI playhead loop for WebAudio
-          startPlayheadLoop();
-        } else {
-          await audio.play();
-          await tryStartDryPlayback();
-          if (dryAudio.paused) startDryRetry();
+        await audio.play();
+        await tryStartDryPlayback();
+        if (dryAudio.paused) {
+          startDryRetry();
         }
       };
 
@@ -893,24 +848,13 @@
       };
 
       const updateTimeLabel = () => {
-        if (usingWebAudio && audioCtx && wetBuffer) {
-          const elapsed = isPlaying ? (audioCtx.currentTime - playbackStartTime) : playbackOffset;
-          const current = formatTime(elapsed % wetBuffer.duration);
-          const total = formatTime(wetBuffer.duration);
-          timeLabel.textContent = `${current} / ${total}`;
-        } else {
-          const current = formatTime(audio.currentTime);
-          const total = formatTime(audio.duration);
-          timeLabel.textContent = `${current} / ${total}`;
-        }
+        const current = formatTime(audio.currentTime);
+        const total = formatTime(audio.duration);
+        timeLabel.textContent = `${current} / ${total}`;
       };
 
       const updatePlayButton = () => {
-        if (usingWebAudio) {
-          playToggle.textContent = isPlaying ? "Pause" : "Play";
-        } else {
-          playToggle.textContent = audio.paused ? "Play" : "Pause";
-        }
+        playToggle.textContent = audio.paused ? "Play" : "Pause";
       };
 
       const stopPlayheadLoop = () => {
@@ -921,17 +865,7 @@
       };
 
       const updatePlayhead = () => {
-        let duration = 0;
-        let currentTime = 0;
-        if (usingWebAudio && audioCtx && wetBuffer) {
-          duration = wetBuffer.duration;
-          currentTime = isPlaying ? (audioCtx.currentTime - playbackStartTime) : playbackOffset;
-        } else {
-          duration = Number.isFinite(audio.duration) ? audio.duration : 0;
-          currentTime = audio.currentTime || 0;
-        }
-
-        if (!Number.isFinite(duration) || duration <= 0) {
+        if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
           playhead.classList.remove("visible");
           playhead.style.left = `${previewPlotBounds.left * 100}%`;
           timelineSlider.value = "0";
@@ -940,7 +874,7 @@
           return;
         }
 
-        const ratio = Math.min(Math.max(currentTime / duration, 0), 1);
+        const ratio = Math.min(Math.max(audio.currentTime / audio.duration, 0), 1);
         const boundedRatio = previewPlotBounds.left + ratio * (previewPlotBounds.right - previewPlotBounds.left);
         playhead.style.left = `${boundedRatio * 100}%`;
         timelineSlider.value = String(ratio);
@@ -953,8 +887,7 @@
         stopPlayheadLoop();
         const tick = () => {
           updatePlayhead();
-          const keepRunning = usingWebAudio ? isPlaying : !audio.paused;
-          if (keepRunning) {
+          if (!audio.paused) {
             rafId = requestAnimationFrame(tick);
           } else {
             rafId = null;
@@ -963,8 +896,8 @@
         rafId = requestAnimationFrame(tick);
       };
 
-      const setTrack = async (index) => {
-        const playing = usingWebAudio ? isPlaying : !audio.paused;
+      const setTrack = (index) => {
+        const playing = !audio.paused;
         const track = tracks[index];
         currentTrack = track;
         source.src = track.src;
@@ -977,24 +910,8 @@
         selectedLabel.textContent = `Selected clip: ${track.title}`;
         mixRow.style.display = track.isDryReference ? "none" : "flex";
         clearDryRetry();
-        // Reset web audio state for this track
-        wetBuffer = null; dryBuffer = null; lastDecodedTrack = null;
-        if (audioCtx === null && window.AudioContext) {
-          try {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            usingWebAudio = true;
-          } catch (e) {
-            usingWebAudio = false;
-          }
-        }
-
-        // Attempt to decode buffers (async) so ready when user presses play
-        if (usingWebAudio) {
-          decodeBuffersForTrack(currentTrack).catch(() => { usingWebAudio = false; });
-        } else {
-          audio.load();
-          dryAudio.load();
-        }
+        audio.load();
+        dryAudio.load();
         playhead.classList.remove("visible");
         playhead.style.left = `${previewPlotBounds.left * 100}%`;
         timelineSlider.value = "0";
@@ -1007,73 +924,6 @@
         });
         updateTimeLabel();
         updatePlayButton();
-      };
-
-      // --- WebAudio helper functions ---
-      const fetchArrayBuffer = async (url) => {
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error(`Failed to fetch ${url}`);
-        return await resp.arrayBuffer();
-      };
-
-      const decodeBuffersForTrack = async (track) => {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        try {
-          const wetArr = await fetchArrayBuffer(track.src);
-          wetBuffer = await audioCtx.decodeAudioData(wetArr.slice(0));
-        } catch (err) {
-          wetBuffer = null;
-          throw err;
-        }
-
-        try {
-          const dryArr = await fetchArrayBuffer(track.drySrc);
-          dryBuffer = await audioCtx.decodeAudioData(dryArr.slice(0));
-        } catch (err) {
-          // fallback to reference dry file
-          try {
-            const fallbackArr = await fetchArrayBuffer(track.dryFallbackSrc);
-            dryBuffer = await audioCtx.decodeAudioData(fallbackArr.slice(0));
-          } catch (err2) {
-            dryBuffer = null;
-            throw err2;
-          }
-        }
-
-        lastDecodedTrack = track;
-        // Create gain nodes
-        wetGain = audioCtx.createGain();
-        dryGain = audioCtx.createGain();
-        wetGain.gain.value = Number(mixSlider.value) / 100;
-        dryGain.gain.value = 1 - wetGain.gain.value;
-        wetGain.connect(audioCtx.destination);
-        dryGain.connect(audioCtx.destination);
-      };
-
-      const playWebAudioSources = async (offsetSec = 0) => {
-        if (!audioCtx || !wetBuffer) return;
-        // stop existing
-          if (wetSource) { try { wetSource.stop(); } catch (e) {} wetSource.disconnect(); wetSource = null; }
-        if (drySourceNode) { try { drySourceNode.stop(); } catch (e) {} drySourceNode.disconnect(); drySourceNode = null; }
-
-        wetSource = audioCtx.createBufferSource();
-        wetSource.buffer = wetBuffer;
-        wetSource.loop = true;
-        wetSource.connect(wetGain);
-
-        if (dryBuffer) {
-          drySourceNode = audioCtx.createBufferSource();
-          drySourceNode.buffer = dryBuffer;
-          drySourceNode.loop = true;
-          drySourceNode.connect(dryGain);
-        }
-
-        // start a little in future to ensure both scheduled at same time
-        const startAt = audioCtx.currentTime + 0.05;
-        playbackStartTime = startAt - offsetSec;
-        wetSource.start(startAt, offsetSec % wetBuffer.duration);
-        if (drySourceNode) drySourceNode.start(startAt, offsetSec % dryBuffer.duration);
-        isPlaying = true;
       };
 
       tracks.forEach((track, index) => {
@@ -1154,36 +1004,20 @@
           stopAllPlayers(audio);
           await playBoth();
         } else {
-          if (usingWebAudio) {
-            await stopThisPlayer();
-            stopPlayheadLoop();
-          } else {
-            audio.pause();
-            dryAudio.pause();
-          }
+          audio.pause();
+          dryAudio.pause();
         }
         updatePlayButton();
       });
       timelineSlider.addEventListener("input", () => {
-        // Support WebAudio seeking when available
+        if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
+          return;
+        }
         const ratio = Math.min(Math.max(Number(timelineSlider.value), 0), 1);
-        if (usingWebAudio && audioCtx && wetBuffer) {
-          const nextTime = ratio * wetBuffer.duration;
-          playbackOffset = nextTime;
-          if (isPlaying) {
-            // restart scheduled sources at new offset
-            playWebAudioSources(playbackOffset).catch(() => {});
-            playbackStartTime = audioCtx.currentTime - playbackOffset;
-          }
-        } else {
-          if (!Number.isFinite(audio.duration) || audio.duration <= 0) {
-            return;
-          }
-          const nextTime = ratio * audio.duration;
-          audio.currentTime = nextTime;
-          if (currentTrack && !currentTrack.isDryReference) {
-            dryAudio.currentTime = nextTime;
-          }
+        const nextTime = ratio * audio.duration;
+        audio.currentTime = nextTime;
+        if (currentTrack && !currentTrack.isDryReference) {
+          dryAudio.currentTime = nextTime;
         }
         updatePlayhead();
       });
